@@ -62,30 +62,78 @@ class OutputWriter:
         if not data:
             return
 
-        # Збираємо всі ключі для заголовка
-        all_keys = set()
-        for row in data:
-            all_keys.update(row.keys())
+        # Ключі, які фіксуємо спочатку
+        fixed_keys = ["Text", "Length", "PhonemeCount", "SyllablesCount", "AverageSyllables"]
 
-        fieldnames = ["Text", "Length", "SyllablesCount"] + sorted(
-            k for k in all_keys if k not in {"Text", "Length", "SyllablesCount"}
-        )
+        # Беремо перший рядок, щоб зберегти порядок додаткових ключів
+        first_row = data[0]
+        additional_keys = [k for k in first_row.keys() if k not in set(fixed_keys)]
+        fieldnames = fixed_keys + additional_keys
 
-        # Створюємо папку, якщо треба
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        # Відкриваємо існуючий файл або створюємо новий
+        # Якщо файл існує, очищуємо його перед перезаписом
         if os.path.exists(path):
             wb = load_workbook(path)
             ws = wb.active
+            # Видаляємо всі рядки, крім заголовка
+            ws.delete_rows(2, ws.max_row)
         else:
             wb = Workbook()
             ws = wb.active
             ws.append(fieldnames)
 
-        # Додаємо рядки
+        # Додаємо всі рядки даних
         for row in data:
             ws.append([row.get(fn, "") for fn in fieldnames])
+
+        # Обчислюємо підсумки
+        sum_length = sum(row.get("Length", 0) for row in data)
+        sum_phoneme = sum(row.get("PhonemeCount", 0) for row in data)
+        sum_syllables = sum(row.get("SyllablesCount", 0) for row in data)
+        sum_c = sum(row.get("Total C", 0) for row in data)
+        sum_v = sum(row.get("Total V", 0) for row in data)
+
+        # Знаходимо індекси відповідних колонок у fieldnames
+        idx_text = fieldnames.index("Text")
+        idx_length = fieldnames.index("Length")
+        idx_phoneme = fieldnames.index("PhonemeCount")
+        idx_syllables = fieldnames.index("SyllablesCount")
+        idx_c = fieldnames.index("Total C")
+        idx_v = fieldnames.index("Total V")
+
+        # Додаємо порожній рядок перед підсумками
+        ws.append([""] * len(fieldnames))
+
+        # Рядок: загальна довжина файлів
+        row_length = [""] * len(fieldnames)
+        row_length[idx_text] = "Total Length"
+        row_length[idx_length] = sum_length
+        ws.append(row_length)
+
+        # Рядок: загальна кількість фонем
+        row_phoneme = [""] * len(fieldnames)
+        row_phoneme[idx_text] = "Total Phonemes"
+        row_phoneme[idx_phoneme] = sum_phoneme
+        ws.append(row_phoneme)
+
+        # Рядок: загальна кількість складів
+        row_syllables = [""] * len(fieldnames)
+        row_syllables[idx_text] = "Total Syllables"
+        row_syllables[idx_syllables] = sum_syllables
+        ws.append(row_syllables)
+
+        # Рядок: сумарна кількість приголосних (C)
+        row_c = [""] * len(fieldnames)
+        row_c[idx_text] = "Total C"
+        row_c[idx_c] = sum_c
+        ws.append(row_c)
+
+        # Рядок: сумарна кількість голосних (V)
+        row_v = [""] * len(fieldnames)
+        row_v[idx_text] = "Total V"
+        row_v[idx_v] = sum_v
+        ws.append(row_v)
 
         wb.save(path)
 
